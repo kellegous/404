@@ -7,6 +7,8 @@ import (
   "database/sql"
   "encoding/json"
   "fmt"
+  "four04/config"
+  "four04/secure"
   _ "github.com/go-sql-driver/mysql"
   "time"
 )
@@ -22,18 +24,13 @@ const (
 
   sessionTableCreate = `
     CREATE TABLE IF NOT EXISTS session (
-      Id VARCHAR(22) PRIMARY KEY,
+      Id VARBINARY(16) PRIMARY KEY,
       UserId BIGINT NOT NULL,
       CreatedAt DATETIME NOT NULL,
       ExpiresAt DATETIME NOT NULL
     ) ENGINE=InnoDB
   `
 )
-
-type Config interface {
-  MysqlUser() string
-  MysqlHost() string
-}
 
 type User struct {
   Id        int
@@ -67,7 +64,7 @@ func (u *User) Save(db *sql.DB) error {
 }
 
 type Session struct {
-  Key       string
+  Key       []byte
   UserId    int
   CreatedAt time.Time
   ExpiresAt time.Time
@@ -80,7 +77,22 @@ func (s *Session) Save(db *sql.DB) error {
   return err
 }
 
-func Init(cfg Config) error {
+func NewSession(userId int) (*Session, error) {
+  var key [16]byte
+  if err := secure.FillStrongKey(key[:]); err != nil {
+    return nil, err
+  }
+
+  now := time.Now().UTC()
+  return &Session{
+    Key:       key[:],
+    UserId:    userId,
+    CreatedAt: now,
+    ExpiresAt: now.Add(24 * time.Hour),
+  }, nil
+}
+
+func Init(cfg *config.Config) error {
   db, err := Open(cfg)
   if err != nil {
     return err
@@ -101,10 +113,7 @@ func Init(cfg Config) error {
   return nil
 }
 
-func Open(cfg Config) (*sql.DB, error) {
-  host := cfg.MysqlHost()
-  if host == "localhost" {
-    host = ""
-  }
-  return sql.Open("mysql", fmt.Sprintf("%s@%s/four04", cfg.MysqlUser(), host))
+func Open(cfg *config.Config) (*sql.DB, error) {
+  return sql.Open("mysql",
+    fmt.Sprintf("%s@%s/four04", cfg.Mysql.User, cfg.Mysql.Host))
 }

@@ -4,15 +4,12 @@ import (
   "code.google.com/p/goauth2/oauth"
   "encoding/json"
   "fmt"
+  "four04/config"
+  "four04/store"
   "github.com/kellegous/pork"
   "net/http"
   "time"
 )
-
-type Context interface {
-  ClientId() string
-  ClientSecret() string
-}
 
 type ghUser struct {
   Id        int       `json:"id"`
@@ -33,10 +30,10 @@ func urlFor(r *http.Request) string {
   return fmt.Sprintf("%s://%s/auth/z", sc, r.Host)
 }
 
-func configFromRequest(ctx Context, r *http.Request) *oauth.Config {
+func configFromRequest(cfg *config.Config, r *http.Request) *oauth.Config {
   return &oauth.Config{
-    ClientId:     ctx.ClientId(),
-    ClientSecret: ctx.ClientSecret(),
+    ClientId:     cfg.OAuth.ClientId,
+    ClientSecret: cfg.OAuth.ClientSecret,
     Scope:        "user:email,gist",
     AuthURL:      "https://github.com/login/oauth/authorize",
     TokenURL:     "https://github.com/login/oauth/access_token",
@@ -44,7 +41,7 @@ func configFromRequest(ctx Context, r *http.Request) *oauth.Config {
   }
 }
 
-func fetchUser(tx *oauth.Transport, user *ghUser) error {
+func fetchGhUser(tx *oauth.Transport, user *ghUser) error {
   c := http.Client{
     Transport: tx,
   }
@@ -58,10 +55,26 @@ func fetchUser(tx *oauth.Transport, user *ghUser) error {
   return json.NewDecoder(res.Body).Decode(user)
 }
 
-func Setup(r pork.Router, ctx Context) {
+func createSessionFrom(gh *ghUser, t *oauth.Token) (*store.Session, error) {
+  // user := &store.User{
+  //   Id:        gh.Id,
+  //   Name:      gh.Name,
+  //   Email:     gh.Email,
+  //   Company:   gh.Company,
+  //   Location:  gh.Location,
+  //   Blog:      gh.Blog,
+  //   CreatedAt: gh.CreatedAt,
+  //   UpdatedAt: gh.UpdatedAt,
+  //   Token:     t,
+  // }
+
+  return nil, nil
+}
+
+func Setup(r pork.Router, cfg *config.Config) {
   r.RespondWithFunc("/auth/a", func(w pork.ResponseWriter, r *http.Request) {
     http.Redirect(w, r,
-      configFromRequest(ctx, r).AuthCodeURL(""),
+      configFromRequest(cfg, r).AuthCodeURL(""),
       http.StatusTemporaryRedirect)
   })
 
@@ -73,7 +86,7 @@ func Setup(r pork.Router, ctx Context) {
     }
 
     tx := oauth.Transport{
-      Config: configFromRequest(ctx, r),
+      Config: configFromRequest(cfg, r),
     }
 
     _, err := tx.Exchange(code)
@@ -83,11 +96,16 @@ func Setup(r pork.Router, ctx Context) {
     }
 
     var user ghUser
-    if err := fetchUser(&tx, &user); err != nil {
+    if err := fetchGhUser(&tx, &user); err != nil {
       http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
       return
     }
 
+    // TODO(knoton):
+    // 1 - Validate user
+    // 2 - Create or update the user
+    // 3 - Create a session for the user
+    // 4 - Add the session key as a cookie value
     fmt.Fprintf(w, "%v\n", user)
   })
 }
