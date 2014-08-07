@@ -4,6 +4,7 @@ import (
   "encoding/json"
   "flag"
   "four04/auth"
+  "four04/store"
   "github.com/kellegous/pork"
   "net/http"
   "os"
@@ -14,6 +15,11 @@ type Config struct {
     ClientId     string `json:"client_id"`
     ClientSecret string `json:"client_secret"`
   }
+
+  Mysql struct {
+    Host string `json:"host"`
+    User string `json:"user"`
+  }
 }
 
 func (c *Config) ClientId() string {
@@ -22,6 +28,14 @@ func (c *Config) ClientId() string {
 
 func (c *Config) ClientSecret() string {
   return c.OAuth.ClientSecret
+}
+
+func (c *Config) MysqlHost() string {
+  return c.Mysql.Host
+}
+
+func (c *Config) MysqlUser() string {
+  return c.Mysql.User
 }
 
 func (c *Config) Load(filename string) error {
@@ -40,6 +54,10 @@ func main() {
 
   var cfg Config
   if err := cfg.Load(*flagConf); err != nil {
+    panic(err)
+  }
+
+  if err := store.Init(&cfg); err != nil {
     panic(err)
   }
 
