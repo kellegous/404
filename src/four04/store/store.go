@@ -1,8 +1,11 @@
 package store
 
 import (
+  "bytes"
   "code.google.com/p/goauth2/oauth"
+  "compress/gzip"
   "database/sql"
+  "encoding/json"
   "fmt"
   _ "github.com/go-sql-driver/mysql"
   "time"
@@ -20,7 +23,9 @@ const (
   sessionTableCreate = `
     CREATE TABLE IF NOT EXISTS session (
       Id VARCHAR(22) PRIMARY KEY,
-      UserId BIGINT NOT NULL
+      UserId BIGINT NOT NULL,
+      CreatedAt DATETIME NOT NULL,
+      ExpiresAt DATETIME NOT NULL
     ) ENGINE=InnoDB
   `
 )
@@ -42,11 +47,37 @@ type User struct {
   Token     *oauth.Token
 }
 
+func (u *User) Save(db *sql.DB) error {
+  var buf bytes.Buffer
+
+  w := gzip.NewWriter(&buf)
+
+  if err := json.NewEncoder(w).Encode(u); err != nil {
+    return err
+  }
+
+  if err := w.Close(); err != nil {
+    return err
+  }
+
+  q := `INSERT INTO user (Id, Email, Data) VALUES (?, ?, ?)
+        ON DUPLICATE KEY UPDATE Email=?, Data=?`
+  _, err := db.Exec(q, u.Id, u.Email, buf.Bytes(), u.Email, buf.Bytes())
+  return err
+}
+
 type Session struct {
   Key       string
   UserId    int
   CreatedAt time.Time
   ExpiresAt time.Time
+}
+
+func (s *Session) Save(db *sql.DB) error {
+  q := `INSERT INTO session (Id, UserId, CreatedAt, ExpiresAt)
+        VALUES (?, ?, ?, ?)`
+  _, err := db.Exec(q, s.Key, s.UserId, s.CreatedAt, s.ExpiresAt)
+  return err
 }
 
 func Init(cfg Config) error {
@@ -76,7 +107,4 @@ func Open(cfg Config) (*sql.DB, error) {
     host = ""
   }
   return sql.Open("mysql", fmt.Sprintf("%s@%s/four04", cfg.MysqlUser(), host))
-}
-
-func NewSessionFor(userId int) (*Session, error) {
 }
