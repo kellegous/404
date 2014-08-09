@@ -1,14 +1,23 @@
 package auth
 
 import (
+  "bytes"
   "code.google.com/p/goauth2/oauth"
   "encoding/json"
   "fmt"
   "four04/config"
+  "four04/context"
+  "four04/secure"
   "four04/store"
+  "github.com/kellegous/base62"
   "github.com/kellegous/pork"
+  "io"
   "net/http"
   "time"
+)
+
+const (
+  AuthCookieName = "s"
 )
 
 type ghUser struct {
@@ -55,20 +64,88 @@ func fetchGhUser(tx *oauth.Transport, user *ghUser) error {
   return json.NewDecoder(res.Body).Decode(user)
 }
 
-func createSessionFrom(gh *ghUser, t *oauth.Token) (*store.Session, error) {
-  // user := &store.User{
-  //   Id:        gh.Id,
-  //   Name:      gh.Name,
-  //   Email:     gh.Email,
-  //   Company:   gh.Company,
-  //   Location:  gh.Location,
-  //   Blog:      gh.Blog,
-  //   CreatedAt: gh.CreatedAt,
-  //   UpdatedAt: gh.UpdatedAt,
-  //   Token:     t,
-  // }
+func createSessionFrom(ctx *context.Context, gh *ghUser, t *oauth.Token) (*store.Session, error) {
+  user := &store.User{
+    Id:        gh.Id,
+    Name:      gh.Name,
+    Email:     gh.Email,
+    Company:   gh.Company,
+    Location:  gh.Location,
+    Blog:      gh.Blog,
+    CreatedAt: gh.CreatedAt,
+    UpdatedAt: gh.UpdatedAt,
+    Token:     t,
+  }
 
-  return nil, nil
+  if err := user.Save(ctx); err != nil {
+    return nil, err
+  }
+
+  sess, err := store.NewSession(user.Id)
+  if err != nil {
+    return nil, err
+  }
+
+  if err := sess.Save(ctx); err != nil {
+    return nil, err
+  }
+
+  return sess, nil
+}
+
+func setAuthCookie(w http.ResponseWriter, cfg *config.Config, sess *store.Session) error {
+  env, err := secure.Sign(sess.Key, cfg.HmacKey)
+  if err != nil {
+    return err
+  }
+
+  var buf bytes.Buffer
+  e := base62.NewEncoder(&buf)
+  if _, err := e.Write(env); err != nil {
+    return err
+  }
+  if err := e.Close(); err != nil {
+    return err
+  }
+
+  // TODO(knorton): Should also be a secure cookie.
+  http.SetCookie(w, &http.Cookie{
+    Name:     AuthCookieName,
+    Value:    buf.String(),
+    Path:     "/",
+    MaxAge:   24 * 60 * 60,
+    HttpOnly: true,
+  })
+
+  return nil
+}
+
+func SessionIdFromRequest(ctx *context.Context, r *http.Request) ([]byte, error) {
+  c, err := r.Cookie(AuthCookieName)
+  if err != nil || c.Value == "" {
+    return nil, nil
+  }
+
+  var buf bytes.Buffer
+  if _, err := io.Copy(&buf, base62.NewDecoder(bytes.NewBufferString(c.Value))); err != nil {
+    return nil, err
+  }
+
+  sid, _, err := secure.Verify(buf.Bytes(), ctx.Cfg.HmacKey)
+  if err != nil {
+    return nil, err
+  }
+
+  return sid, nil
+}
+
+func SessionFromRequest(ctx *context.Context, r *http.Request) (*store.Session, error) {
+  sid, err := SessionIdFromRequest(ctx, r)
+  if err != nil {
+    return nil, err
+  }
+
+  return store.FindSession(ctx, sid)
 }
 
 func Setup(r pork.Router, cfg *config.Config) {
@@ -79,6 +156,12 @@ func Setup(r pork.Router, cfg *config.Config) {
   })
 
   r.RespondWithFunc("/auth/z", func(w pork.ResponseWriter, r *http.Request) {
+    ctx, err := context.Open(cfg)
+    if err != nil {
+      panic(err)
+    }
+    defer ctx.Close()
+
     code := r.FormValue("code")
     if code == "" {
       http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
@@ -89,7 +172,7 @@ func Setup(r pork.Router, cfg *config.Config) {
       Config: configFromRequest(cfg, r),
     }
 
-    _, err := tx.Exchange(code)
+    _, err = tx.Exchange(code)
     if err != nil {
       http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
       return
@@ -101,11 +184,42 @@ func Setup(r pork.Router, cfg *config.Config) {
       return
     }
 
-    // TODO(knoton):
-    // 1 - Validate user
-    // 2 - Create or update the user
-    // 3 - Create a session for the user
-    // 4 - Add the session key as a cookie value
-    fmt.Fprintf(w, "%v\n", user)
+    sess, err := createSessionFrom(ctx, &user, tx.Token)
+    if err != nil {
+      panic(err)
+    }
+
+    if err := setAuthCookie(w, cfg, sess); err != nil {
+      panic(err)
+    }
+  })
+
+  r.RespondWithFunc("/auth/exit", func(w pork.ResponseWriter, r *http.Request) {
+    ctx, err := context.Open(cfg)
+    if err != nil {
+      panic(err)
+    }
+    defer ctx.Close()
+
+    sid, err := SessionIdFromRequest(ctx, r)
+    if err != nil {
+      panic(err)
+    }
+
+    if sid == nil {
+      return
+    }
+
+    if err := store.DeleteSession(ctx, sid); err != nil {
+      panic(err)
+    }
+
+    http.SetCookie(w, &http.Cookie{
+      Name:     AuthCookieName,
+      Value:    "",
+      Path:     "/",
+      MaxAge:   0,
+      HttpOnly: true,
+    })
   })
 }

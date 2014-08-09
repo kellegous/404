@@ -11,6 +11,8 @@ type Config struct {
     ClientSecret string `json:"client_secret"`
   }
 
+  HmacKey []byte `json:"hmac_key"`
+
   Mysql struct {
     Host string `json:"host"`
     User string `json:"user"`

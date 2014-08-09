@@ -6,8 +6,8 @@ import (
   "compress/gzip"
   "database/sql"
   "encoding/json"
-  "fmt"
   "four04/config"
+  "four04/context"
   "four04/secure"
   _ "github.com/go-sql-driver/mysql"
   "time"
@@ -44,7 +44,7 @@ type User struct {
   Token     *oauth.Token
 }
 
-func (u *User) Save(db *sql.DB) error {
+func (u *User) Save(ctx *context.Context) error {
   var buf bytes.Buffer
 
   w := gzip.NewWriter(&buf)
@@ -59,8 +59,43 @@ func (u *User) Save(db *sql.DB) error {
 
   q := `INSERT INTO user (Id, Email, Data) VALUES (?, ?, ?)
         ON DUPLICATE KEY UPDATE Email=?, Data=?`
-  _, err := db.Exec(q, u.Id, u.Email, buf.Bytes(), u.Email, buf.Bytes())
+  _, err := ctx.Db.Exec(q, u.Id, u.Email, buf.Bytes(), u.Email, buf.Bytes())
   return err
+}
+
+func (u *User) fromRow(r *sql.Rows) error {
+  var data []byte
+
+  if err := r.Scan(&data); err != nil {
+    return err
+  }
+
+  gr, err := gzip.NewReader(bytes.NewReader(data))
+  if err != nil {
+    return err
+  }
+
+  return json.NewDecoder(gr).Decode(u)
+}
+
+func FindUser(ctx *context.Context, id int) (*User, error) {
+  q := "SELECT Data FROM user WHERE Id=?"
+  r, err := ctx.Db.Query(q, id)
+  if err != nil {
+    return nil, err
+  }
+  defer r.Close()
+
+  if !r.Next() {
+    return nil, nil
+  }
+
+  user := &User{}
+  if err := user.fromRow(r); err != nil {
+    return nil, err
+  }
+
+  return user, nil
 }
 
 type Session struct {
@@ -70,11 +105,19 @@ type Session struct {
   ExpiresAt time.Time
 }
 
-func (s *Session) Save(db *sql.DB) error {
+func (s *Session) Save(ctx *context.Context) error {
   q := `INSERT INTO session (Id, UserId, CreatedAt, ExpiresAt)
         VALUES (?, ?, ?, ?)`
-  _, err := db.Exec(q, s.Key, s.UserId, s.CreatedAt, s.ExpiresAt)
+  _, err := ctx.Db.Exec(q, s.Key, s.UserId, s.CreatedAt, s.ExpiresAt)
   return err
+}
+
+func (s *Session) User(ctx *context.Context) (*User, error) {
+  return FindUser(ctx, s.UserId)
+}
+
+func (s *Session) fromRow(r *sql.Rows) error {
+  return r.Scan(&s.Key, &s.UserId, &s.CreatedAt, &s.ExpiresAt)
 }
 
 func NewSession(userId int) (*Session, error) {
@@ -92,12 +135,38 @@ func NewSession(userId int) (*Session, error) {
   }, nil
 }
 
+func FindSession(ctx *context.Context, id []byte) (*Session, error) {
+  q := "SELECT Id, UserId, CreatedAt, ExpiresAt FROM session WHERE ID=?"
+  r, err := ctx.Db.Query(q, id)
+  if err != nil {
+    return nil, err
+  }
+  defer r.Close()
+
+  if !r.Next() {
+    return nil, nil
+  }
+
+  sess := &Session{}
+  if err := sess.fromRow(r); err != nil {
+    return nil, err
+  }
+
+  return sess, nil
+}
+
+func DeleteSession(ctx *context.Context, id []byte) error {
+  q := "DELETE FROM session WHERE id=?"
+  _, err := ctx.Db.Exec(q, id)
+  return err
+}
+
 func Init(cfg *config.Config) error {
-  db, err := Open(cfg)
+  ctx, err := context.Open(cfg)
   if err != nil {
     return err
   }
-  defer db.Close()
+  defer ctx.Close()
 
   cmds := []string{
     userTableCreate,
@@ -105,15 +174,10 @@ func Init(cfg *config.Config) error {
   }
 
   for _, cmd := range cmds {
-    if _, err := db.Exec(cmd); err != nil {
+    if _, err := ctx.Db.Exec(cmd); err != nil {
       return err
     }
   }
 
   return nil
-}
-
-func Open(cfg *config.Config) (*sql.DB, error) {
-  return sql.Open("mysql",
-    fmt.Sprintf("%s@%s/four04", cfg.Mysql.User, cfg.Mysql.Host))
 }
