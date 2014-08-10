@@ -1,0 +1,54 @@
+body {
+  background-color: #fff;
+}
+
+#users {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 200px;
+  background-color: #999;
+}
+
+#chat {
+  position: absolute;
+  top: 0;
+  left: 200px;
+  right: 0;
+  bottom: 0;
+}
+
+#messages {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 50px;
+  right: 0;
+}
+
+#message {
+  box-sizing: border-box;
+  position: absolute;
+  height: 50px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  border: none;
+  border-top: 1px solid #eee;
+  resize: none;
+  outline: none;
+}
+#message-nib {
+  position: absolute;
+  left: 20px;
+  bottom: 42px;
+  width: 15px;
+  height: 15px;
+  background-color: #fff;
+  border-top: 1px solid #eee;
+  border-left: 1px solid #eee;
+  -webkit-transform: rotate(45deg);
+  -moz-transform: rotate(45deg);
+}

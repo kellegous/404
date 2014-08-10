@@ -7,6 +7,7 @@ import (
   "four04/auth"
   "four04/config"
   "four04/context"
+  "four04/hub"
   "four04/store"
   "github.com/kellegous/pork"
   "net/http"
@@ -92,6 +93,11 @@ func main() {
   r := pork.NewRouter(nil, nil, nil)
 
   auth.Setup(r, &cfg)
+
+  if err := hub.Setup(r); err != nil {
+    panic(err)
+  }
+
   setup(r, root, &cfg)
 
   if err := http.ListenAndServe(*flagAddr, r); err != nil {
