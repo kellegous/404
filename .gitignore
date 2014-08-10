@@ -1,1 +1,5 @@
 config.json
+bin
+pkg
+src/github.com
+src/code.google.com
