@@ -4,7 +4,6 @@ import (
   "database/sql"
   "fmt"
   "four04/config"
-  "net/http"
 )
 
 var DefaultConfig *config.Config
@@ -18,15 +17,12 @@ func (c *Context) Close() error {
   return c.Db.Close()
 }
 
-func Must(ctx *Context, err error) *Context {
+func MustOpen(cfg *config.Config) *Context {
+  ctx, err := Open(cfg)
   if err != nil {
     panic(err)
   }
   return ctx
-}
-
-func FromRequest(r *http.Request, cfg *config.Config) (*Context, error) {
-  return Open(cfg)
 }
 
 func Open(cfg *config.Config) (*Context, error) {

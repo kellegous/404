@@ -123,7 +123,7 @@ func setAuthCookie(w http.ResponseWriter, cfg *config.Config, sess *store.Sessio
 func SessionIdFromRequest(ctx *context.Context, r *http.Request) ([]byte, error) {
   c, err := r.Cookie(AuthCookieName)
   if err != nil || c.Value == "" {
-    return nil, nil
+    return nil, store.ErrNotFound
   }
 
   var buf bytes.Buffer
@@ -146,6 +146,20 @@ func SessionFromRequest(ctx *context.Context, r *http.Request) (*store.Session, 
   }
 
   return store.FindSession(ctx, sid)
+}
+
+func UserFromRequest(ctx *context.Context, r *http.Request) (*store.Session, *store.User, error) {
+  sess, err := SessionFromRequest(ctx, r)
+  if err != nil {
+    return nil, nil, err
+  }
+
+  user, err := sess.User(ctx)
+  if err != nil {
+    return nil, nil, err
+  }
+
+  return sess, user, nil
 }
 
 func Setup(r pork.Router, cfg *config.Config) {

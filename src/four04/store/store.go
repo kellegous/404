@@ -6,6 +6,7 @@ import (
   "compress/gzip"
   "database/sql"
   "encoding/json"
+  "errors"
   "four04/config"
   "four04/context"
   "four04/secure"
@@ -30,6 +31,10 @@ const (
       ExpiresAt DATETIME NOT NULL
     ) ENGINE=InnoDB
   `
+)
+
+var (
+  ErrNotFound = errors.New("record not found")
 )
 
 type User struct {
@@ -87,7 +92,7 @@ func FindUser(ctx *context.Context, id int) (*User, error) {
   defer r.Close()
 
   if !r.Next() {
-    return nil, nil
+    return nil, ErrNotFound
   }
 
   user := &User{}
@@ -144,7 +149,7 @@ func FindSession(ctx *context.Context, id []byte) (*Session, error) {
   defer r.Close()
 
   if !r.Next() {
-    return nil, nil
+    return nil, ErrNotFound
   }
 
   sess := &Session{}
