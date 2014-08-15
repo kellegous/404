@@ -22,7 +22,6 @@ end
 
 # rocksdb stuff
 file 'pkg/darwin_amd64/github.com/DanielMorsing/rocksdb.a' do
-  puts ENV['CGO_CFLAGS']
   sh 'go', 'get', 'github.com/DanielMorsing/rocksdb'
 end
 
@@ -47,7 +46,8 @@ end
 
 BINS = [
   'bin/four04',
-  'bin/librocksdb.dylib'
+  'bin/librocksdb.dylib',
+  'pkg/darwin_amd64/github.com/DanielMorsing/rocksdb.a'
 ]
 task :default => BINS
 
