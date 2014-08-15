@@ -1,7 +1,9 @@
 require 'fileutils'
 
 ENV.update({
-  'GOPATH' => Dir.pwd
+  'GOPATH' => Dir.pwd,
+  'CGO_CFLAGS' => "-I#{Dir.pwd}/bld/rocksdb/include",
+  'CGO_LDFLAGS' => "-L#{Dir.pwd}/bld/rocksdb",
 })
 
 DEPS = [
@@ -18,11 +20,35 @@ DEPS = [
   src
 end
 
+# rocksdb stuff
+file 'pkg/darwin_amd64/github.com/DanielMorsing/rocksdb.a' do
+  puts ENV['CGO_CFLAGS']
+  sh 'go', 'get', 'github.com/DanielMorsing/rocksdb'
+end
+
+file 'bld/rocksdb/Makefile' do
+  FileUtils::mkdir('bld') unless File.exists?('bld')
+  Process::wait spawn('git clone https://github.com/facebook/rocksdb.git',
+    :chdir => 'bld')
+end
+
+file 'bld/rocksdb/librocksdb.dylib' => 'bld/rocksdb/Makefile' do
+  Process::wait spawn('make shared_lib',
+    :chdir => 'bld/rocksdb')
+end
+
+file 'bin/librocksdb.dylib' => 'bld/rocksdb/librocksdb.dylib' do
+  FileUtils::cp('bld/rocksdb/librocksdb.dylib', 'bin/librocksdb.dylib')
+end
+
 file 'bin/four04' => DEPS + FileList['src/**'] do
   sh 'go', 'build', '-o', 'bin/four04', 'four04/fe'
 end
 
-BINS = ['bin/four04']
+BINS = [
+  'bin/four04',
+  'bin/librocksdb.dylib'
+]
 task :default => BINS
 
 task :clean do
