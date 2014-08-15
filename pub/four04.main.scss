@@ -1,5 +1,8 @@
 body {
   background-color: #fff;
+  font-size: 18px;
+  color: #444;
+  font-family: "ff-meta-web-pro", sans-serif;
 }
 
 #users {
@@ -39,11 +42,16 @@ body {
   border-top: 1px solid #eee;
   resize: none;
   outline: none;
+  padding: 10px;
+  font-size: 20px;
+  font-family: "ff-meta-web-pro", sans-serif;
+  color: #666;
 }
+
 #message-nib {
   position: absolute;
   left: 20px;
-  bottom: 42px;
+  bottom: 50px - 8px;
   width: 15px;
   height: 15px;
   background-color: #fff;
