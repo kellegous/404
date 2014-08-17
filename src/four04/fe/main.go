@@ -8,7 +8,6 @@ import (
   "four04/config"
   "four04/context"
   "four04/hub"
-  "four04/store"
   "github.com/kellegous/pork"
   "net/http"
   "os"
@@ -37,21 +36,21 @@ func findRoot() (string, error) {
   return "", errors.New("cannot locate pub directory")
 }
 
-func setup(r pork.Router, root string, cfg *config.Config) {
+func setup(r pork.Router, ctx *context.Context) error {
+  root, err := findRoot()
+  if err != nil {
+    return err
+  }
+
   c := pork.Content(pork.NewConfig(pork.None),
     http.Dir(root))
 
   // serves up static content
   r.RespondWithFunc("/", func(w pork.ResponseWriter, r *http.Request) {
-    ctx := context.MustOpen(cfg)
-    defer ctx.Close()
-
     _, err := auth.SessionFromRequest(ctx, r)
-    if err == store.ErrNotFound {
+    if err != nil {
       http.Redirect(w, r, "/auth/a", http.StatusTemporaryRedirect)
       return
-    } else if err != nil {
-      panic(err)
     }
 
     c.ServePork(w, r)
@@ -59,9 +58,6 @@ func setup(r pork.Router, root string, cfg *config.Config) {
 
   // some debugging handlers
   r.RespondWithFunc("/info", func(w pork.ResponseWriter, r *http.Request) {
-    ctx := context.MustOpen(cfg)
-    defer ctx.Close()
-
     sess, user, err := auth.UserFromRequest(ctx, r)
     if err != nil {
       panic(err)
@@ -69,6 +65,8 @@ func setup(r pork.Router, root string, cfg *config.Config) {
 
     fmt.Fprintln(w, sess, user)
   })
+
+  return nil
 }
 
 func main() {
@@ -76,29 +74,27 @@ func main() {
   flagConf := flag.String("conf", "config.json", "")
   flag.Parse()
 
-  root, err := findRoot()
-  if err != nil {
-    panic(err)
-  }
-
   var cfg config.Config
   if err := cfg.LoadFromFile(*flagConf); err != nil {
     panic(err)
   }
 
-  if err := store.Init(&cfg); err != nil {
+  ctx, err := context.Open(&cfg)
+  if err != nil {
     panic(err)
   }
 
   r := pork.NewRouter(nil, nil, nil)
 
-  auth.Setup(r, &cfg)
+  auth.Setup(r, ctx)
 
   if err := hub.Setup(r); err != nil {
     panic(err)
   }
 
-  setup(r, root, &cfg)
+  if err := setup(r, ctx); err != nil {
+    panic(err)
+  }
 
   if err := http.ListenAndServe(*flagAddr, r); err != nil {
     panic(err)

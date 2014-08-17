@@ -40,12 +40,12 @@ file 'bin/librocksdb.dylib' => 'bld/rocksdb/librocksdb.dylib' do
   FileUtils::cp('bld/rocksdb/librocksdb.dylib', 'bin/librocksdb.dylib')
 end
 
-file 'bin/four04' => DEPS + FileList['src/**'] do
-  sh 'go', 'build', '-o', 'bin/four04', 'four04/fe'
+file 'bin/fe' => DEPS + FileList['src/**/*.go'] do
+  sh 'go', 'build', '-o', 'bin/fe', 'four04/fe'
 end
 
 BINS = [
-  'bin/four04',
+  'bin/fe',
   'bin/librocksdb.dylib',
   'pkg/darwin_amd64/github.com/DanielMorsing/rocksdb.a'
 ]

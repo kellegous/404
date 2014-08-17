@@ -1,8 +1,11 @@
 package config
 
 import (
+  "crypto/sha256"
   "encoding/json"
+  "fmt"
   "os"
+  "path/filepath"
 )
 
 type Config struct {
@@ -13,10 +16,9 @@ type Config struct {
 
   HmacKey []byte `json:"hmac_key"`
 
-  Mysql struct {
-    Host string `json:"host"`
-    User string `json:"user"`
-  }
+  DbPath string `json:"dbpath"`
+
+  RootPath string `json:-`
 }
 
 func (c *Config) LoadFromFile(filename string) error {
@@ -26,5 +28,22 @@ func (c *Config) LoadFromFile(filename string) error {
   }
   defer r.Close()
 
-  return json.NewDecoder(r).Decode(c)
+  if err := json.NewDecoder(r).Decode(c); err != nil {
+    return err
+  }
+
+  if !filepath.IsAbs(c.DbPath) {
+    dir, err := filepath.Abs(filepath.Dir(filename))
+    if err != nil {
+      return err
+    }
+
+    c.DbPath = filepath.Join(dir, c.DbPath)
+  }
+
+  if len(c.HmacKey) < sha256.BlockSize {
+    return fmt.Errorf("HMAC Key is too short: %d < %d", len(c.HmacKey), sha256.BlockSize)
+  }
+
+  return nil
 }

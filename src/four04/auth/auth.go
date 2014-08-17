@@ -66,7 +66,7 @@ func fetchGhUser(tx *oauth.Transport, user *ghUser) error {
 
 func createSessionFrom(ctx *context.Context, gh *ghUser, t *oauth.Token) (*store.Session, error) {
   user := &store.User{
-    Id:        gh.Id,
+    Id:        uint64(gh.Id),
     Name:      gh.Name,
     Email:     gh.Email,
     Company:   gh.Company,
@@ -162,20 +162,14 @@ func UserFromRequest(ctx *context.Context, r *http.Request) (*store.Session, *st
   return sess, user, nil
 }
 
-func Setup(r pork.Router, cfg *config.Config) {
+func Setup(r pork.Router, ctx *context.Context) {
   r.RespondWithFunc("/auth/a", func(w pork.ResponseWriter, r *http.Request) {
     http.Redirect(w, r,
-      configFromRequest(cfg, r).AuthCodeURL(""),
+      configFromRequest(ctx.Cfg, r).AuthCodeURL(""),
       http.StatusTemporaryRedirect)
   })
 
   r.RespondWithFunc("/auth/z", func(w pork.ResponseWriter, r *http.Request) {
-    ctx, err := context.Open(cfg)
-    if err != nil {
-      panic(err)
-    }
-    defer ctx.Close()
-
     code := r.FormValue("code")
     if code == "" {
       http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
@@ -183,10 +177,10 @@ func Setup(r pork.Router, cfg *config.Config) {
     }
 
     tx := oauth.Transport{
-      Config: configFromRequest(cfg, r),
+      Config: configFromRequest(ctx.Cfg, r),
     }
 
-    _, err = tx.Exchange(code)
+    _, err := tx.Exchange(code)
     if err != nil {
       http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
       return
@@ -203,18 +197,12 @@ func Setup(r pork.Router, cfg *config.Config) {
       panic(err)
     }
 
-    if err := setAuthCookie(w, cfg, sess); err != nil {
+    if err := setAuthCookie(w, ctx.Cfg, sess); err != nil {
       panic(err)
     }
   })
 
   r.RespondWithFunc("/auth/exit", func(w pork.ResponseWriter, r *http.Request) {
-    ctx, err := context.Open(cfg)
-    if err != nil {
-      panic(err)
-    }
-    defer ctx.Close()
-
     sid, err := SessionIdFromRequest(ctx, r)
     if err != nil {
       panic(err)

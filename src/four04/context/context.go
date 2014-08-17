@@ -1,39 +1,38 @@
 package context
 
 import (
-  "database/sql"
-  "fmt"
   "four04/config"
+  "github.com/DanielMorsing/rocksdb"
+  "os"
+  "path/filepath"
 )
 
 var DefaultConfig *config.Config
 
 type Context struct {
-  Db  *sql.DB
+  Db  *rocksdb.DB
   Cfg *config.Config
 }
 
-func (c *Context) Close() error {
-  return c.Db.Close()
-}
-
-func MustOpen(cfg *config.Config) *Context {
-  ctx, err := Open(cfg)
-  if err != nil {
-    panic(err)
-  }
-  return ctx
+func (c *Context) Close() {
+  c.Db.Close()
 }
 
 func Open(cfg *config.Config) (*Context, error) {
-  db, err := sql.Open("mysql",
-    fmt.Sprintf("%s@%s/four04?parseTime=true", cfg.Mysql.User, cfg.Mysql.Host))
-  if err != nil {
-    return nil, err
+  p := filepath.Join(cfg.DbPath, "db")
+  if _, err := os.Stat(p); err != nil {
+    if err := os.MkdirAll(p, os.ModePerm); err != nil {
+      return nil, err
+    }
   }
 
-  if cfg == nil {
-    cfg = DefaultConfig
+  o := rocksdb.NewOptions()
+  o.SetCreateIfMissing(true)
+  defer o.Close()
+
+  db, err := rocksdb.Open(p, o)
+  if err != nil {
+    return nil, err
   }
 
   return &Context{
