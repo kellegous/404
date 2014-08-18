@@ -88,7 +88,7 @@ func main() {
 
   auth.Setup(r, ctx)
 
-  if err := hub.Setup(r); err != nil {
+  if err := hub.Setup(r, ctx); err != nil {
     panic(err)
   }
 
