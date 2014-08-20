@@ -1,6 +1,7 @@
 package hub
 
 import (
+  "fmt"
   "four04/auth"
   "four04/context"
   "github.com/googollee/go-socket.io"
@@ -19,8 +20,10 @@ func Setup(r pork.Router, ctx *context.Context) error {
   }
 
   srv.On("connection", func(s socketio.Socket) {
+    log.Printf("%v", s)
     _, _, err := auth.UserFromRequest(ctx, s.Request())
     if err != nil {
+      s.Emit("disconnect")
       // TODO(knorton): Access denied. There is no API to close a socket.
       return
     }
@@ -28,7 +31,11 @@ func Setup(r pork.Router, ctx *context.Context) error {
     s.Join(channelChat)
 
     s.On("msg", func(msg string) {
-      s.BroadcastTo(channelChat, msg)
+      s.BroadcastTo(channelChat, "msg", msg)
+    })
+
+    s.On(fmt.Sprintf("%s msg", channelChat), func(msg string) {
+      s.Emit("msg", msg)
     })
 
     s.On("disconnection", func() {

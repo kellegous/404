@@ -15,6 +15,10 @@ model.socketDidDisconnect.tap((model? : Model) => {
   console.log('disconnect');
 });
 
+model.messageDidArrive.tap((model? : Model, msg? : string) => {
+  console.log(msg);
+});
+
 model.connect();
 
 }
