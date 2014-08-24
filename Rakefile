@@ -8,8 +8,7 @@ ENV.update({
 
 DEPS = [
   'code.google.com/p/goauth2/oauth',
-  'github.com/go-sql-driver/mysql',
-  'github.com/googollee/go-socket.io',
+  'gopkg.in/igm/sockjs-go.v2/sockjs',
   'github.com/kellegous/pork',
   'github.com/kellegous/base62',
 ].map do |dep|

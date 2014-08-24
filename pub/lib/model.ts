@@ -1,4 +1,4 @@
-
+/// <reference path="sockjs.d.ts" />
 module four04 {
 
 export class Model {
@@ -8,9 +8,9 @@ export class Model {
 
   messageDidArrive = new Signal;
 
-  private socket : io.Socket;
+  private socket : SockJS;
 
-  constructor(private host : string) {
+  constructor(public path : string) {
   }
 
   /**
@@ -21,27 +21,20 @@ export class Model {
       return;
     }
 
-    var socket = io.connect(this.host, { path: '/api/sock'});
-    socket.on('connect', () => {
+    var socket = new SockJS(this.path, null);
+    socket.onopen = (e) => {
       this.socket = socket;
       this.socketDidConnect.raise(this);
-    });
+    };
 
-    socket.on('disconnect', () => {
+    socket.onclose = (e) => {
       this.socket = null;
       this.socketDidDisconnect.raise(this);
-    });
+    };
 
-    socket.on('msg', (msg : string) => {
-      this.messageDidArrive.raise(this, msg);
-    });
-  }
-
-  /**
-   *
-   */
-  static fromLocation() : Model {
-    return new Model(location.protocol + '//' + location.host);
+    socket.onmessage = (e) => {
+      console.log(e);
+    };
   }
 
   /**
@@ -56,7 +49,7 @@ export class Model {
    */
   send(ch : string, msg : any) {
     if (this.socket) {
-      this.socket.emit(ch, msg);
+      // send
     }
   }
 }

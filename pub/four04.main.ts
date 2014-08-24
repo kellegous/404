@@ -1,10 +1,9 @@
-/// <reference path="lib/socketio.d.ts" />
 /// <reference path="lib/signal.ts" />
 /// <reference path="lib/model.ts" />
 /// <reference path="lib/convo-view.ts" />
 module four04 {
 
-var model = Model.fromLocation(),
+var model = new Model('/api/sock'),
     convo = new ConvoView(model);
 
 model.socketDidConnect.tap((model? : Model) => {
@@ -13,10 +12,6 @@ model.socketDidConnect.tap((model? : Model) => {
 
 model.socketDidDisconnect.tap((model? : Model) => {
   console.log('disconnect');
-});
-
-model.messageDidArrive.tap((model? : Model, msg? : string) => {
-  console.log(msg);
 });
 
 model.connect();
