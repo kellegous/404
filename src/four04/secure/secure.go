@@ -2,6 +2,8 @@ package secure
 
 import (
   "bytes"
+  "crypto/aes"
+  "crypto/cipher"
   "crypto/hmac"
   "crypto/rand"
   "crypto/sha256"
@@ -26,6 +28,46 @@ func NewStrongKey(n int) ([]byte, error) {
     return nil, err
   }
   return b, nil
+}
+
+func Encrypt(buf, encKey, sigKey []byte) ([]byte, error) {
+  block, err := aes.NewCipher(encKey)
+  if err != nil {
+    return nil, err
+  }
+
+  enc := make([]byte, aes.BlockSize+len(buf))
+  iv := enc[:aes.BlockSize]
+  if _, err := io.ReadFull(rand.Reader, iv); err != nil {
+    return nil, err
+  }
+
+  stream := cipher.NewCTR(block, iv)
+  stream.XORKeyStream(enc[aes.BlockSize:], buf)
+
+  return Sign(enc, sigKey)
+}
+
+func Decrypt(buf, encKey, sigKey []byte) ([]byte, time.Duration, error) {
+  enc, dur, err := Verify(buf, sigKey)
+  if err != nil {
+    return nil, dur, err
+  }
+
+  if len(enc) <= aes.BlockSize {
+    return nil, time.Duration(0), errors.New("secure: encrypted message is impossibly short")
+  }
+
+  block, err := aes.NewCipher(encKey)
+  if err != nil {
+    return nil, time.Duration(0), err
+  }
+
+  res := make([]byte, len(enc)-aes.BlockSize)
+  stream := cipher.NewCTR(block, buf[:aes.BlockSize])
+  stream.XORKeyStream(res, enc[aes.BlockSize:])
+
+  return res, dur, nil
 }
 
 func Sign(buf, key []byte) ([]byte, error) {
