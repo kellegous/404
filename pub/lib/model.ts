@@ -1,4 +1,5 @@
 /// <reference path="sockjs.d.ts" />
+/// <reference path="jquery.d.ts" />
 module four04 {
 
 export class Model {
@@ -10,7 +11,37 @@ export class Model {
 
   private socket : SockJS;
 
-  constructor(public path : string) {
+  constructor(private sockPath : string, private authPath : string) {
+  }
+
+  private auth(socket : SockJS) {
+    socket.onmessage = (event : SJSMessageEvent) => {
+      var msg = JSON.parse(event.data);
+      if (msg.Type != 'connect') {
+        socket.close();
+      }
+
+      this.socket = socket;
+      this.socketDidConnect.raise(this);
+    };
+
+    socket.onclose = (event : SJSCloseEvent) => {
+      this.socket = null;
+    };
+
+    $.ajax({
+      url: this.authPath,
+      dataType: 'text',
+      success: (data : string) => {
+        socket.send(JSON.stringify({
+          Type: 'connect',
+          Token: data
+        }));
+      },
+      error: (xhr, status, error) => {
+        console.error(error.toString());
+      }
+    });
   }
 
   /**
@@ -21,10 +52,11 @@ export class Model {
       return;
     }
 
-    var socket = new SockJS(this.path, null);
+    var socket = new SockJS(this.sockPath, null);
     socket.onopen = (e) => {
-      this.socket = socket;
-      this.socketDidConnect.raise(this);
+      // the socket is actually connected, but not logically connected
+      // util auth is completed.
+      this.auth(socket);
     };
 
     socket.onclose = (e) => {
@@ -47,9 +79,12 @@ export class Model {
   /**
    *
    */
-  send(ch : string, msg : any) {
+  send(to : string, msg : any) {
     if (this.socket) {
-      // send
+      this.socket.send(JSON.stringify({
+        To: to,
+        Msg: msg
+      }));
     }
   }
 }

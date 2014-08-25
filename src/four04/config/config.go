@@ -16,6 +16,8 @@ type Config struct {
 
   HmacKey []byte `json:"hmac_key"`
 
+  AesKey []byte `json:"aes_key"`
+
   DbPath string `json:"dbpath"`
 
   RootPath string `json:-`
@@ -42,7 +44,14 @@ func (c *Config) LoadFromFile(filename string) error {
   }
 
   if len(c.HmacKey) < sha256.BlockSize {
-    return fmt.Errorf("HMAC Key is too short: %d < %d", len(c.HmacKey), sha256.BlockSize)
+    return fmt.Errorf("HMAC Key is too short: %d < %d",
+      len(c.HmacKey),
+      sha256.BlockSize)
+  }
+
+  if len(c.AesKey) != 32 /*AES256*/ {
+    return fmt.Errorf("AES key is too short: %d < 32",
+      len(c.AesKey))
   }
 
   return nil

@@ -3,7 +3,7 @@
 /// <reference path="lib/convo-view.ts" />
 module four04 {
 
-var model = new Model('/api/sock'),
+var model = new Model('/api/sock', '/auth/sock'),
     convo = new ConvoView(model);
 
 model.socketDidConnect.tap((model? : Model) => {

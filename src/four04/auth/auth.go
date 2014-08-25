@@ -162,6 +162,22 @@ func UserFromRequest(ctx *context.Context, r *http.Request) (*store.Session, *st
   return sess, user, nil
 }
 
+func SessionFromToken(ctx *context.Context, token string) (*store.Session, error) {
+  buf, err := base62.DecodeString(token)
+  if err != nil {
+    return nil, err
+  }
+
+  key, _, err := secure.Decrypt(buf, ctx.Cfg.AesKey, ctx.Cfg.HmacKey)
+  if err != nil {
+    return nil, err
+  }
+
+  // TODO(knorton): age must be checked.
+
+  return store.FindSession(ctx, key)
+}
+
 func Setup(r pork.Router, ctx *context.Context) {
   r.RespondWithFunc("/auth/a", func(w pork.ResponseWriter, r *http.Request) {
     http.Redirect(w, r,
@@ -200,6 +216,29 @@ func Setup(r pork.Router, ctx *context.Context) {
     if err := setAuthCookie(w, ctx.Cfg, sess); err != nil {
       panic(err)
     }
+  })
+
+  r.RespondWithFunc("/auth/sock", func(w pork.ResponseWriter, r *http.Request) {
+    sess, err := SessionFromRequest(ctx, r)
+    if err != nil {
+      http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+      return
+    }
+
+    buf, err := secure.Encrypt(sess.Key, ctx.Cfg.AesKey, ctx.Cfg.HmacKey)
+    if err != nil {
+      panic(err)
+    }
+
+    var res bytes.Buffer
+    e := base62.NewEncoder(&res)
+    if _, err := e.Write(buf); err != nil {
+      panic(err)
+    }
+    e.Close()
+
+    w.Header().Set("Content-Type", "text/plain")
+    w.Write(res.Bytes())
   })
 
   r.RespondWithFunc("/auth/exit", func(w pork.ResponseWriter, r *http.Request) {
