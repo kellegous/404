@@ -15,9 +15,7 @@ export class ConvoView {
         return;
       }
 
-      this.model.send('msg', JSON.stringify({
-        text : text.val()
-      }));
+      this.model.send(text.val());
 
       text.val('');
     });

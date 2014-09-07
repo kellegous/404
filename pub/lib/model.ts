@@ -54,18 +54,43 @@ export class Model {
 
     var socket = new SockJS(this.sockPath, null);
     socket.onopen = (e) => {
-      // the socket is actually connected, but not logically connected
-      // util auth is completed.
-      this.auth(socket);
-    };
+      $.ajax({
+        url: this.authPath,
+        dataType: 'text',
+        success: (data : string) => {
+          socket.send(JSON.stringify({
+            Type: 'connect',
+            Token: data
+          }));
+        },
+        error: (xhr, status, error) => {
+          console.error(error.toString());
+        }
+      });
 
-    socket.onclose = (e) => {
-      this.socket = null;
-      this.socketDidDisconnect.raise(this);
-    };
 
-    socket.onmessage = (e) => {
-      console.log(e);
+      socket.onclose = (event : SJSCloseEvent) => {
+        this.socket = null;
+      };
+
+      socket.onmessage = (event : SJSMessageEvent) => {
+        var msg = JSON.parse(event.data);
+        if (msg.Type != 'connect') {
+          socket.close();
+        }
+
+        socket.onmessage = (event : SJSMessageEvent) => {
+          console.log(event);
+        };
+
+        socket.onclose = (event : SJSCloseEvent) => {
+          this.socket = null;
+          this.socketDidDisconnect.raise(this);
+        };
+
+        this.socket = socket;
+        this.socketDidConnect.raise(this);
+      };
     };
   }
 
@@ -79,10 +104,11 @@ export class Model {
   /**
    *
    */
-  send(to : string, msg : any) {
+  send(msg : any) {
     if (this.socket) {
       this.socket.send(JSON.stringify({
-        To: to,
+        To: 0,
+        Type: "m",
         Msg: msg
       }));
     }
